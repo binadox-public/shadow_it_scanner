@@ -47,6 +47,5 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
-go.sum
 /hist_scanner
 /hist_scanner.exe
