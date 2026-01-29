@@ -5,9 +5,12 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 // Config holds all configuration for the scanner
@@ -21,6 +24,9 @@ type Config struct {
 	StateFile   string        `mapstructure:"state_file"`
 	LogFile     string        `mapstructure:"log_file"`
 	Source      string        `mapstructure:"source"`
+
+	// discoveredConfig is true if config was obtained via auto-discovery
+	discoveredConfig bool
 }
 
 // DefaultConfig returns configuration with default values
@@ -34,7 +40,8 @@ func DefaultConfig() *Config {
 	}
 }
 
-// Load reads configuration from file and environment
+// Load reads configuration from file, environment, and optionally auto-discovery.
+// Priority (highest to lowest): CLI flags > Env vars > Config file > Auto-discovery
 func Load(configPath string) (*Config, error) {
 	cfg := DefaultConfig()
 
@@ -60,7 +67,25 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Try auto-discovery as fallback if ServerURL or APIKey are missing
+	if cfg.ServerURL == "" || cfg.APIKey == "" {
+		if discovered := Discover(); discovered != nil {
+			if cfg.ServerURL == "" {
+				cfg.ServerURL = discovered.ServerURL
+			}
+			if cfg.APIKey == "" {
+				cfg.APIKey = discovered.APIKey
+			}
+			cfg.discoveredConfig = true
+		}
+	}
+
 	return cfg, nil
+}
+
+// WasDiscovered returns true if configuration was obtained via auto-discovery
+func (c *Config) WasDiscovered() bool {
+	return c.discoveredConfig
 }
 
 // Validate checks that required configuration is present
@@ -109,4 +134,50 @@ func (c *Config) ApplyFlags(serverURL, apiKey, stateFile, logFile string, initia
 	if timeout > 0 {
 		c.Timeout = timeout
 	}
+}
+
+// configFile represents the YAML structure for saving config
+type configFile struct {
+	ServerURL   string `yaml:"server_url"`
+	APIKey      string `yaml:"api_key"`
+	InitialDays int    `yaml:"initial_days"`
+	Timeout     string `yaml:"timeout"`
+	ChunkSizeKB int    `yaml:"chunk_size_kb"`
+	Compress    bool   `yaml:"compress"`
+	StateFile   string `yaml:"state_file,omitempty"`
+	LogFile     string `yaml:"log_file,omitempty"`
+	Source      string `yaml:"source"`
+}
+
+// SaveToFile writes the configuration to a YAML file
+func (c *Config) SaveToFile(path string) error {
+	// Ensure parent directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	cf := configFile{
+		ServerURL:   c.ServerURL,
+		APIKey:      c.APIKey,
+		InitialDays: c.InitialDays,
+		Timeout:     c.Timeout.String(),
+		ChunkSizeKB: c.ChunkSizeKB,
+		Compress:    c.Compress,
+		StateFile:   c.StateFile,
+		LogFile:     c.LogFile,
+		Source:      c.Source,
+	}
+
+	data, err := yaml.Marshal(cf)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Write with restricted permissions (contains API key)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
 }

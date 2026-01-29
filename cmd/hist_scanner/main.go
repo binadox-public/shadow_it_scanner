@@ -226,6 +226,16 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Config: %s\n", paths.ConfigPath)
 	fmt.Printf("  Interval: %s\n", installInterval)
 	fmt.Printf("  Run as: %s\n", installUser)
+
+	// If config was obtained via auto-discovery, save it to file
+	// so scheduled runs don't depend on discovery server availability
+	if cfg.WasDiscovered() {
+		fmt.Println("  Config source: auto-discovery")
+		fmt.Printf("  Saving discovered config to: %s\n", paths.ConfigPath)
+		if err := cfg.SaveToFile(paths.ConfigPath); err != nil {
+			return fmt.Errorf("failed to save discovered config: %w", err)
+		}
+	}
 	fmt.Println()
 
 	if err := inst.Install(cfg, installInterval, installUser); err != nil {

@@ -167,7 +167,60 @@ hist_scanner run
 1. Command line flags (highest)
 2. Environment variables
 3. Config file
-4. Defaults (lowest)
+4. Auto-discovery
+5. Defaults (lowest)
+
+### Auto-Discovery
+
+The scanner can automatically discover configuration from a central server, enabling zero-config deployment in managed environments.
+
+#### How It Works
+
+1. Scanner sends GET request to `http://binadox.config:3000`
+2. Server responds with JSON containing `url` and `token`
+3. Scanner uses these values if not already configured via flags/env/file
+
+#### Setup Requirements
+
+**1. DNS Resolution**
+
+The hostname `binadox.config` must resolve to your discovery server. Add to hosts file:
+
+```bash
+# Linux/macOS: /etc/hosts
+# Windows: C:\Windows\System32\drivers\etc\hosts
+192.168.1.100 binadox.config
+```
+
+Or configure internal DNS to resolve `binadox.config`.
+
+**2. Discovery Server**
+
+The server must listen on port 3000 and respond to `GET /` with:
+
+```json
+{
+  "url": "https://your-server.example.com/api/1/organizations/discovery/store-events",
+  "token": "your-api-token-here"
+}
+```
+
+Note: The scanner automatically appends `/visited-sites` to the URL.
+
+#### Zero-Config Installation
+
+With auto-discovery configured, installation requires no parameters:
+
+```bash
+# Discovery server provides all configuration
+sudo hist_scanner install
+```
+
+The discovered configuration is saved to the config file during installation, so scheduled runs don't depend on the discovery server being available.
+
+#### Discovery Timeout
+
+The discovery request has a 2-second timeout to avoid delaying startup if the discovery server is unavailable. If discovery fails, the scanner falls back to other configuration methods or reports missing configuration.
 
 ## Supported Browsers
 
@@ -239,7 +292,7 @@ The scanner sends POST requests with JSON payload:
 |--------|-------|
 | `Content-Type` | `application/json` |
 | `Content-Encoding` | `gzip` (if compression enabled) |
-| `X-API-Key` | API key from config |
+| `Authorization` | `ProxyToken <api-key>` |
 
 ### Response
 

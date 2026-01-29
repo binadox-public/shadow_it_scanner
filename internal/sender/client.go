@@ -188,7 +188,7 @@ func (c *Client) sendWithGzip(data []byte) (int64, error) {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	req.Header.Set("X-API-Key", c.apiKey)
+	req.Header.Set("Authorization", "ProxyToken "+c.apiKey)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -211,7 +211,7 @@ func (c *Client) sendRaw(data []byte) (int64, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", c.apiKey)
+	req.Header.Set("Authorization", "ProxyToken "+c.apiKey)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
