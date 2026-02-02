@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"hist_scanner/internal/browser"
@@ -24,27 +25,27 @@ import (
 type ExitCode int
 
 const (
-	ExitSuccess        ExitCode = 0 // All browsers/profiles scanned and sent
-	ExitPartialFailure ExitCode = 1 // Some browsers/profiles failed
+	ExitSuccess         ExitCode = 0 // All browsers/profiles scanned and sent
+	ExitPartialFailure  ExitCode = 1 // Some browsers/profiles failed
 	ExitCompleteFailure ExitCode = 2 // Nothing sent
 )
 
 // Scanner orchestrates the browser history scanning process
 type Scanner struct {
-	cfg     *config.Config
-	state   *state.Manager
-	client  *sender.Client
-	logger  *log.Logger
-	dryRun  bool
+	cfg    *config.Config
+	state  *state.Manager
+	client *sender.Client
+	logger *log.Logger
+	dryRun bool
 }
 
 // ScanResult contains the results of a scan operation
 type ScanResult struct {
-	UsersScanned     int
-	ProfilesScanned  int
-	EntriesSent      int
-	Errors           []string
-	ExitCode         ExitCode
+	UsersScanned    int
+	ProfilesScanned int
+	EntriesSent     int
+	Errors          []string
+	ExitCode        ExitCode
 }
 
 // New creates a new Scanner instance
@@ -52,11 +53,16 @@ func New(cfg *config.Config, dryRun bool) (*Scanner, error) {
 	// Set up logger
 	var logWriter io.Writer = io.Discard
 	if cfg.LogFile != "" {
-		f, err := os.OpenFile(cfg.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open log file: %w", err)
+		if strings.EqualFold(cfg.LogFile, "STDERR") {
+			logWriter = os.Stderr
+		} else {
+			f, err := os.OpenFile(cfg.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				return nil, fmt.Errorf("failed to open log file: %w", err)
+			}
+			logWriter = f
 		}
-		logWriter = f
+
 	}
 
 	logger := log.New(logWriter, "[hist_scanner] ", log.LstdFlags)

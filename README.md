@@ -29,7 +29,7 @@ Download the appropriate binary for your platform from the releases page.
 ### Basic Usage
 
 ```bash
-# Scan and send to server
+# Scan and send to server (endpoint will automatically append /visited-sites if missing)
 hist_scanner run --server-url https://audit.example.com/api/history --api-key YOUR_API_KEY
 
 # Dry run - scan and print JSON to stdout (no server required)
@@ -37,6 +37,8 @@ hist_scanner run --dry-run
 
 # Install as scheduled service (runs daily)
 sudo hist_scanner install --server-url https://audit.example.com/api/history --api-key YOUR_API_KEY
+
+> Note: CLI flags use hyphenated names (`--server-url`, `--state-file`, etc.). Snake_case (`--server_url`) is only used in the YAML/config keys and environment variables (e.g., `server_url`, `HIST_SCANNER_SERVER_URL`). Using snake_case with CLI flags will be rejected as “unknown flag”.
 ```
 
 ## Installation
@@ -103,6 +105,8 @@ hist_scanner.exe uninstall
 ```
 
 ## Configuration
+
+> CLI flags are hyphenated (e.g., `--server-url`, `--state-file`); config file keys and environment variables stay snake_case (e.g., `server_url`, `HIST_SCANNER_SERVER_URL`).
 
 ### Command Line Flags
 
@@ -312,11 +316,18 @@ Large payloads are automatically split into chunks based on compressed size (def
 
 ## Logging
 
-By default, the scanner runs silently. Enable logging with:
+By default, the scanner runs silently (logs are discarded). To see logs, point the logger to a file or to `STDERR`:
 
 ```bash
 hist_scanner run --log-file /var/log/hist_scanner.log ...
+# or stream to stderr
+hist_scanner run --log-file STDERR ...
 ```
+
+You can also set it via config or env:
+
+- YAML key: `log_file: /var/log/hist_scanner.log`
+- Env var: `export HIST_SCANNER_LOG_FILE=/var/log/hist_scanner.log`
 
 Log output includes:
 - Scan start/end timestamps

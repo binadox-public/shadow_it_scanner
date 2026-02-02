@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"hist_scanner/internal/dto"
@@ -27,7 +28,7 @@ type Client struct {
 // maxChunkSizeKB is the maximum compressed chunk size in kilobytes
 func NewClient(serverURL, apiKey string, timeout time.Duration, maxChunkSizeKB int, compress bool) *Client {
 	return &Client{
-		serverURL: serverURL,
+		serverURL: normalizeServerURL(serverURL),
 		apiKey:    apiKey,
 		httpClient: &http.Client{
 			Timeout: timeout,
@@ -39,12 +40,12 @@ func NewClient(serverURL, apiKey string, timeout time.Duration, maxChunkSizeKB i
 
 // SendResult contains the result of a send operation
 type SendResult struct {
-	TotalSent      int   // Total entries successfully sent
-	ChunksSent     int   // Number of chunks sent
-	LastError      error // Last error encountered (if any)
-	FailedCount    int   // Number of entries that failed to send
-	BytesSent      int64 // Total bytes sent (compressed if enabled)
-	BytesOriginal  int64 // Total bytes before compression
+	TotalSent     int   // Total entries successfully sent
+	ChunksSent    int   // Number of chunks sent
+	LastError     error // Last error encountered (if any)
+	FailedCount   int   // Number of entries that failed to send
+	BytesSent     int64 // Total bytes sent (compressed if enabled)
+	BytesOriginal int64 // Total bytes before compression
 }
 
 // Send sends visited sites to the server, chunking by compressed size
@@ -197,7 +198,7 @@ func (c *Client) sendWithGzip(data []byte) (int64, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, &httpError{statusCode: resp.StatusCode}
+		return 0, &httpError{statusCode: resp.StatusCode, url: c.serverURL}
 	}
 
 	return int64(compressed.Len()), nil
@@ -220,7 +221,7 @@ func (c *Client) sendRaw(data []byte) (int64, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, &httpError{statusCode: resp.StatusCode}
+		return 0, &httpError{statusCode: resp.StatusCode, url: c.serverURL}
 	}
 
 	return int64(len(data)), nil
@@ -229,10 +230,26 @@ func (c *Client) sendRaw(data []byte) (int64, error) {
 // httpError represents an HTTP error with status code
 type httpError struct {
 	statusCode int
+	url        string
 }
 
 func (e *httpError) Error() string {
+	if e.url != "" {
+		return fmt.Sprintf("server returned status %d (%s)", e.statusCode, e.url)
+	}
 	return fmt.Sprintf("server returned status %d", e.statusCode)
+}
+
+// normalizeServerURL ensures the endpoint ends with /visited-sites (once)
+func normalizeServerURL(u string) string {
+	if u == "" {
+		return ""
+	}
+	trimmed := strings.TrimRight(u, "/")
+	if strings.HasSuffix(trimmed, "/visited-sites") {
+		return trimmed
+	}
+	return trimmed + "/visited-sites"
 }
 
 // isUnsupportedMediaType checks if error is 415 Unsupported Media Type
